@@ -90,6 +90,11 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
     moveRoom,
     resizeRoom,
     setTool,
+    pendingStudentId,
+    setPendingStudentId,
+    placeStudent,
+    project,
+    mode,
   } = planner;
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -223,8 +228,13 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
 
     const hit = roomAt(floor, cell.x, cell.y);
     if (hit) {
+      if (pendingStudentId && hit.kind === "oda") {
+        placeStudent(pendingStudentId, hit.id);
+        return;
+      }
       setSelectedRoomId(hit.id);
-      setTool("sec");
+      if (mode !== "ogrenci") setTool("sec");
+      if (mode === "ogrenci") return;
       checkpoint();
       drag.current = {
         type: "room",
@@ -240,6 +250,7 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
     }
 
     setSelectedRoomId(null);
+    if (pendingStudentId) setPendingStudentId(null);
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
@@ -401,8 +412,16 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
             }}
             onDrop={(event) => {
               event.preventDefault();
-              if (!template) return;
+              const studentId = event.dataTransfer.getData(
+                "application/x-yurt-student",
+              );
               const cell = cellFromEvent(event, boardRef.current!, floor.cols, floor.rows);
+              if (studentId) {
+                const target = roomAt(floor, cell.x, cell.y);
+                if (target) placeStudent(studentId, target.id);
+                return;
+              }
+              if (!template) return;
               placeRoomAt(cell.x, cell.y, template);
             }}
           >
@@ -439,8 +458,12 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
                 <RoomBlock
                   key={room.id}
                   room={display}
+                  names={project.students
+                    .filter((student) => student.roomId === room.id)
+                    .map((student) => student.name)}
                   selected={selectedRoomId === room.id}
                   invalid={!isRoomValid(floor, display)}
+                  highlight={Boolean(pendingStudentId && room.kind === "oda")}
                   onResizePointerDown={(e) => startResize(e, room)}
                 />
               );
@@ -476,6 +499,10 @@ export function FloorCanvas({ planner }: { planner: PlannerApi }) {
                 kız / erkek bölümünü işaretleyip odaları yerleştirin.
               </p>
             </div>
+          </div>
+        ) : pendingStudentId ? (
+          <div className="pointer-events-none absolute top-12 left-1/2 z-10 -translate-x-1/2 rounded-full bg-teal-800 px-3 py-1.5 text-xs font-medium text-white shadow-md">
+            Şimdi bir odaya tıklayın
           </div>
         ) : null}
       </div>
@@ -548,13 +575,17 @@ function AxisLabels({ cols, rows }: { cols: number; rows: number }) {
 
 function RoomBlock({
   room,
+  names,
   selected,
   invalid,
+  highlight,
   onResizePointerDown,
 }: {
   room: Room;
+  names: string[];
   selected: boolean;
   invalid: boolean;
+  highlight: boolean;
   onResizePointerDown: (event: React.PointerEvent) => void;
 }) {
   const Icon = KIND_ICON[room.kind];
@@ -573,6 +604,7 @@ function RoomBlock({
         "absolute flex flex-col overflow-hidden rounded-[6px] border-2 shadow-sm",
         genderRing,
         selected && "z-10 ring-2 ring-teal-700 ring-offset-1",
+        highlight && !selected && "ring-1 ring-teal-600/50",
         invalid && "border-red-600 bg-red-50",
       )}
       style={{
@@ -585,15 +617,23 @@ function RoomBlock({
       <div className="flex items-center justify-between gap-1 px-1.5 pt-1">
         <span className="truncate text-[10px] font-semibold tracking-wide text-stone-800">
           {room.label}
+          {room.kind === "oda" ? ` · ${names.length || room.occupants}/${room.capacity}` : ""}
         </span>
         <Icon className="size-3 shrink-0 text-stone-500" />
       </div>
       {room.kind === "oda" ? (
         <div className="flex flex-1 flex-col justify-between px-1.5 pb-1">
-          <BedDots capacity={room.capacity} occupants={room.occupants} />
-          <p className="text-[10px] font-medium text-stone-600">
-            {room.occupants}/{room.capacity} yatak
-          </p>
+          <BedDots capacity={room.capacity} occupants={names.length || room.occupants} />
+          {names.length ? (
+            <p className="truncate text-[10px] leading-tight text-stone-700">
+              {names.slice(0, 3).join(", ")}
+              {names.length > 3 ? ` +${names.length - 3}` : ""}
+            </p>
+          ) : (
+            <p className="text-[10px] font-medium text-stone-600">
+              {room.occupants}/{room.capacity} yatak
+            </p>
+          )}
         </div>
       ) : (
         <p className="px-1.5 text-[10px] text-stone-500">Ortak</p>
