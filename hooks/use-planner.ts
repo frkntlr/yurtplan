@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
   activeFloor,
   applyShape,
+  assignStudent,
+  autoPlaceStudents,
   clone,
   createEmptyProject,
   createFloor,
@@ -14,6 +16,9 @@ import {
   projectStats,
   resizeFloor,
   roomPlacementValid,
+  syncOccupants,
+  uid,
+  normalizeProject,
 } from "@/lib/planner/model";
 import { createSampleProject } from "@/lib/planner/sample";
 import {
@@ -29,7 +34,9 @@ import type {
   Project,
   Room,
   RoomTemplate,
+  StudentGender,
   Tool,
+  WorkspaceMode,
   Zone,
 } from "@/lib/planner/types";
 
@@ -39,6 +46,8 @@ export function usePlanner() {
   const [project, setProjectState] = useState<Project>(createSampleProject);
   const [hydrated, setHydrated] = useState(false);
   const [tool, setTool] = useState<Tool>("sec");
+  const [mode, setMode] = useState<WorkspaceMode>("plan");
+  const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const [zoneBrush, setZoneBrush] = useState<Zone>("kiz");
   const [buildingPaint, setBuildingPaint] = useState<boolean>(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -264,31 +273,82 @@ export function usePlanner() {
 
   const updateRoom = useCallback(
     (id: string, patch: Partial<Room>) => {
-      updateActiveFloor((f) => ({
-        ...f,
-        rooms: f.rooms.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-      }));
+      setProject((prev) => {
+        const current = activeFloor(prev);
+        let students = prev.students;
+        if (typeof patch.capacity === "number") {
+          const inRoom = students.filter((student) => student.roomId === id);
+          if (inRoom.length > patch.capacity) {
+            const keep = new Set(
+              inRoom.slice(0, patch.capacity).map((student) => student.id),
+            );
+            students = students.map((student) =>
+              student.roomId === id && !keep.has(student.id)
+                ? { ...student, roomId: null }
+                : student,
+            );
+          }
+        }
+        if (patch.gender && patch.gender !== "karma") {
+          students = students.map((student) =>
+            student.roomId === id && student.gender !== patch.gender
+              ? { ...student, roomId: null }
+              : student,
+          );
+        }
+        return syncOccupants({
+          ...prev,
+          students,
+          floors: prev.floors.map((f) =>
+            f.id === current.id
+              ? {
+                  ...f,
+                  rooms: f.rooms.map((r) =>
+                    r.id === id ? { ...r, ...patch } : r,
+                  ),
+                }
+              : f,
+          ),
+        });
+      });
     },
-    [updateActiveFloor],
+    [setProject],
   );
 
   const deleteRoom = useCallback(
     (id: string) => {
-      updateActiveFloor((f) => ({
-        ...f,
-        rooms: f.rooms.filter((r) => r.id !== id),
-      }));
+      setProject((prev) =>
+        syncOccupants({
+          ...prev,
+          floors: prev.floors.map((f) =>
+            f.id === activeFloor(prev).id
+              ? { ...f, rooms: f.rooms.filter((r) => r.id !== id) }
+              : f,
+          ),
+          students: prev.students.map((student) =>
+            student.roomId === id ? { ...student, roomId: null } : student,
+          ),
+        }),
+      );
       setSelectedRoomId((curr) => (curr === id ? null : curr));
     },
-    [updateActiveFloor],
+    [setProject],
   );
 
   const setShape = useCallback(
     (shape: BuildingShape) => {
-      updateActiveFloor((f) => applyShape(f, shape));
+      setProject((prev) => {
+        const current = activeFloor(prev);
+        return normalizeProject({
+          ...prev,
+          floors: prev.floors.map((f) =>
+            f.id === current.id ? applyShape(f, shape) : f,
+          ),
+        });
+      });
       toast.success("Bina şekli uygulandı.");
     },
-    [updateActiveFloor],
+    [setProject],
   );
 
   const setGridSize = useCallback(
@@ -412,7 +472,115 @@ export function usePlanner() {
     setTemplate(tpl);
     setTool("yerlestir");
     setSelectedRoomId(null);
+    setMode("plan");
+    setPendingStudentId(null);
   }, []);
+
+  const switchMode = useCallback((next: WorkspaceMode) => {
+    setMode(next);
+    setTemplate(null);
+    setPendingStudentId(null);
+    if (next === "ogrenci") setTool("sec");
+  }, []);
+
+  const addStudents = useCallback(
+    (raw: string, gender: StudentGender) => {
+      const names = raw
+        .split(/[,;\n]+/)
+        .map((name) => name.trim())
+        .filter(Boolean);
+      if (names.length === 0) {
+        toast.error("Bir isim yazın.");
+        return 0;
+      }
+      setProject((prev) => ({
+        ...prev,
+        students: [
+          ...(prev.students ?? []),
+          ...names.map((name) => ({
+            id: uid(),
+            name,
+            gender,
+            roomId: null as string | null,
+          })),
+        ],
+      }));
+      toast.success(
+        names.length === 1
+          ? `${names[0]} listeye eklendi.`
+          : `${names.length} öğrenci eklendi.`,
+      );
+      return names.length;
+    },
+    [setProject],
+  );
+
+  const removeStudent = useCallback(
+    (id: string) => {
+      setProject((prev) =>
+        syncOccupants({
+          ...prev,
+          students: prev.students.filter((student) => student.id !== id),
+        }),
+      );
+      setPendingStudentId((curr) => (curr === id ? null : curr));
+    },
+    [setProject],
+  );
+
+  const placeStudent = useCallback(
+    (studentId: string, roomId: string | null) => {
+      let error: string | undefined;
+      setProject((prev) => {
+        const result = assignStudent(prev, studentId, roomId);
+        error = result.error;
+        return result.error ? prev : result.project;
+      });
+      if (error) {
+        toast.error(error);
+        return false;
+      }
+      setPendingStudentId(null);
+      if (roomId) setSelectedRoomId(roomId);
+      return true;
+    },
+    [setProject],
+  );
+
+  const autoPlace = useCallback(() => {
+    let placed = 0;
+    let leftover = 0;
+    setProject((prev) => {
+      const result = autoPlaceStudents(prev);
+      placed = result.placed;
+      leftover = result.leftover;
+      return result.project;
+    });
+    if (placed === 0) {
+      toast.message(
+        leftover
+          ? "Boş yatak kalmadı. Oda ekleyin veya limiti kontrol edin."
+          : "Bekleyen öğrenci yok.",
+      );
+    } else if (leftover) {
+      toast.warning(
+        `${placed} kişi yerleşti, ${leftover} kişi için yer kalmadı.`,
+      );
+    } else {
+      toast.success(`${placed} öğrenci odalara yerleşti.`);
+    }
+    setPendingStudentId(null);
+  }, [setProject]);
+
+  const clearPlacements = useCallback(() => {
+    setProject((prev) =>
+      syncOccupants({
+        ...prev,
+        students: prev.students.map((student) => ({ ...student, roomId: null })),
+      }),
+    );
+    toast.success("Tüm öğrenciler bekleyen listeye alındı.");
+  }, [setProject]);
 
   return {
     project,
@@ -433,6 +601,15 @@ export function usePlanner() {
     template,
     chooseTemplate,
     setTemplate,
+    mode,
+    switchMode,
+    pendingStudentId,
+    setPendingStudentId,
+    addStudents,
+    removeStudent,
+    placeStudent,
+    autoPlace,
+    clearPlacements,
     paint,
     checkpoint,
     placeRoomAt,
