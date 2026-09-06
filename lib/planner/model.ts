@@ -6,6 +6,8 @@ import type {
   Project,
   Room,
   RoomTemplate,
+  Student,
+  StudentGender,
   Zone,
 } from "./types";
 
@@ -58,6 +60,7 @@ export function createEmptyProject(): Project {
     floors: [floor],
     activeFloorId: floor.id,
     limits: defaultLimits(),
+    students: [],
   };
 }
 
@@ -367,4 +370,116 @@ export function projectStats(project: Project): FloorStats {
 
 export function isRoomValid(floor: Floor, room: Room): boolean {
   return roomPlacementValid(floor, room.x, room.y, room.w, room.h, room.id);
+}
+
+export function allRooms(project: Project): Room[] {
+  return project.floors.flatMap((floor) => floor.rooms);
+}
+
+export function findRoom(project: Project, roomId: string): Room | undefined {
+  return allRooms(project).find((room) => room.id === roomId);
+}
+
+export function genderFits(room: Room, gender: StudentGender): boolean {
+  if (room.kind !== "oda") return false;
+  return room.gender === "karma" || room.gender === gender;
+}
+
+export function studentsInRoom(students: Student[], roomId: string): Student[] {
+  return students.filter((student) => student.roomId === roomId);
+}
+
+export function syncOccupants(project: Project): Project {
+  const next = clone(project);
+  if (!Array.isArray(next.students)) next.students = [];
+  for (const floor of next.floors) {
+    for (const room of floor.rooms) {
+      room.occupants = studentsInRoom(next.students, room.id).length;
+    }
+  }
+  return next;
+}
+
+export function normalizeProject(project: Project): Project {
+  const next = clone(project);
+  const hadStudents = Array.isArray(project.students);
+  if (!hadStudents) next.students = [];
+  const roomIds = new Set(allRooms(next).map((room) => room.id));
+  for (const student of next.students) {
+    if (student.roomId && !roomIds.has(student.roomId)) student.roomId = null;
+  }
+  if (next.students.length > 0) return syncOccupants(next);
+  return next;
+}
+
+export function canAssignStudent(
+  project: Project,
+  student: Student,
+  roomId: string,
+): { ok: true } | { ok: false; reason: string } {
+  const room = findRoom(project, roomId);
+  if (!room || room.kind !== "oda") {
+    return { ok: false, reason: "Burası yatakhane odası değil." };
+  }
+  if (!genderFits(room, student.gender)) {
+    return {
+      ok: false,
+      reason:
+        student.gender === "kiz"
+          ? "Kız öğrenci erkek odasına giremez."
+          : "Erkek öğrenci kız odasına giremez.",
+    };
+  }
+  const alreadyHere = student.roomId === roomId;
+  const filled = studentsInRoom(project.students, roomId).length;
+  if (!alreadyHere && filled >= room.capacity) {
+    return { ok: false, reason: `${room.label} dolu (${room.capacity} yatak).` };
+  }
+  return { ok: true };
+}
+
+export function assignStudent(
+  project: Project,
+  studentId: string,
+  roomId: string | null,
+): { project: Project; error?: string } {
+  const student = project.students.find((item) => item.id === studentId);
+  if (!student) return { project, error: "Öğrenci bulunamadı." };
+  if (roomId) {
+    const check = canAssignStudent(project, student, roomId);
+    if (!check.ok) return { project, error: check.reason };
+  }
+  const next = clone(project);
+  next.students = next.students.map((item) =>
+    item.id === studentId ? { ...item, roomId } : item,
+  );
+  return { project: syncOccupants(next) };
+}
+
+export function autoPlaceStudents(project: Project): {
+  project: Project;
+  placed: number;
+  leftover: number;
+} {
+  const next = clone(project);
+  let placed = 0;
+  for (const student of next.students) {
+    if (student.roomId) continue;
+    const options = allRooms(next)
+      .filter((room) => genderFits(room, student.gender))
+      .map((room) => ({
+        room,
+        fill: studentsInRoom(next.students, room.id).length,
+      }))
+      .filter((item) => item.fill < item.room.capacity)
+      .sort((a, b) => b.fill - a.fill || a.room.label.localeCompare(b.room.label, "tr"));
+    if (!options[0]) continue;
+    student.roomId = options[0].room.id;
+    placed++;
+  }
+  return {
+    project: syncOccupants(next),
+    placed,
+    leftover: next.students.filter((student) => !student.roomId).length,
+  };
 }
