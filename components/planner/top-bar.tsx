@@ -48,6 +48,8 @@ export function PlannerTopBar({ planner }: { planner: PlannerApi }) {
     loadSample,
     download,
     upload,
+    switchMode,
+    mode,
   } = planner;
   const fileRef = useRef<HTMLInputElement>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -62,6 +64,33 @@ export function PlannerTopBar({ planner }: { planner: PlannerApi }) {
           <p className="font-heading text-sm leading-none">YurtPlan</p>
           <p className="text-[11px] text-muted-foreground">2D oda yerleştirme</p>
         </div>
+      </div>
+
+      <div className="flex rounded-lg bg-muted p-0.5">
+        <button
+          type="button"
+          onClick={() => switchMode("plan")}
+          className={cn(
+            "h-8 rounded-md px-3 text-sm whitespace-nowrap",
+            mode === "plan"
+              ? "bg-background font-medium shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          1. Planı çiz
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode("ogrenci")}
+          className={cn(
+            "h-8 rounded-md px-3 text-sm whitespace-nowrap",
+            mode === "ogrenci"
+              ? "bg-background font-medium shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          2. Öğrenci yerleştir
+        </button>
       </div>
 
       <Input
@@ -176,28 +205,27 @@ export function PlannerTopBar({ planner }: { planner: PlannerApi }) {
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Dört adımda yerleştirme</DialogTitle>
+            <DialogTitle>İki adım: plan, sonra isimler</DialogTitle>
             <DialogDescription>
-              Plan tarayıcınızda kalır. Vercel veya GitHub ile paylaşmak için
-              projeyi deploy etmeniz yeterli.
+              Önce kat planını çizin. Sonra öğrenci isimlerini odalara koyun.
             </DialogDescription>
           </DialogHeader>
           <ol className="space-y-3 text-sm">
             <li>
-              <strong>1. Bina.</strong> Dikdörtgen, L, U, C veya çift kanat
-              seçin. İsterseniz fırçayla kendiniz çizin.
+              <strong>1. Planı çiz.</strong> Bina şekli, kız/erkek bölümü, odalar
+              ve yatak limiti.
             </li>
             <li>
-              <strong>2. Bölüm.</strong> Pembe kız, mavi erkek, sarı ortak alan.
-              Kanadı boyamanız odaya cinsiyet verir.
+              <strong>2. Öğrenci yerleştir.</strong> Üstten bu sekmeyi açın.
+              İsim yazıp listeye ekleyin.
             </li>
             <li>
-              <strong>3. Oda.</strong> Soldan 2/4/6 kişilik oda seçip plana
-              tıklayın. Sürükleyerek taşıyın, köşeden büyütün.
+              Bekleyen karta tıklayın, sonra plandaki odaya tıklayın. Kartı
+              sürükleyebilirsiniz.
             </li>
             <li>
-              <strong>4. Limit.</strong> Sağdaki kaydırıcılar kız/erkek yatağı
-              ve kat oda tavanını ayarlar.
+              <strong>Otomatik</strong> kızları kız odalarına, erkekleri erkek
+              odalarına doldurur. Kız erkek odasına girmez.
             </li>
           </ol>
         </DialogContent>
