@@ -1,4 +1,5 @@
 import { createSampleProject } from "./sample";
+import { normalizeProject } from "./model";
 import { STORAGE_KEY } from "./types";
 import type { Project } from "./types";
 
@@ -20,7 +21,7 @@ export function loadProject(): Project {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return createSampleProject();
     const parsed = JSON.parse(raw) as unknown;
-    if (isProject(parsed)) return parsed;
+    if (isProject(parsed)) return normalizeProject(parsed);
   } catch {
     /* ignore corrupt storage */
   }
@@ -50,5 +51,5 @@ export async function importProject(file: File): Promise<Project> {
   if (!isProject(parsed)) {
     throw new Error("Bu dosya geçerli bir yurt planı değil.");
   }
-  return parsed;
+  return normalizeProject(parsed);
 }

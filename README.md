@@ -13,6 +13,18 @@ Yurt kat planını **2D** olarak çizin, kız ve erkek bölümlerini boyayın, o
 
 Açılışta örnek **Güneş Yurdu** planı gelir. Dosya menüsünden boş plan veya tekrar örnek yüklenebilir.
 
+## Öğrenci yerleştirme
+
+Üstten **2. Öğrenci yerleştir** sekmesini açın.
+
+1. İsim yazın (virgülle birden fazla: `Ayşe, Elif, Merve`)
+2. Kız / Erkek seçip **Listeye ekle**
+3. Bekleyen karta tıklayın, sonra plandaki odaya tıklayın
+4. Ya da kartı odaya sürükleyin
+5. **Otomatik** kızları kız odalarına, erkekleri erkek odalarına doldurur
+
+Kız öğrenci erkek odasına, erkek öğrenci kız odasına giremez. Oda dolunca yerleştirme durur.
+
 ## Yerelde çalıştırma
 
 ```bash

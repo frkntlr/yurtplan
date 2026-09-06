@@ -1,5 +1,7 @@
 export type Zone = "none" | "kiz" | "erkek" | "ortak";
 export type Gender = "kiz" | "erkek" | "karma";
+export type StudentGender = "kiz" | "erkek";
+export type WorkspaceMode = "plan" | "ogrenci";
 export type RoomKind =
   | "oda"
   | "banyo"
@@ -43,11 +45,19 @@ export interface Limits {
   defaultKapasite: number;
 }
 
+export interface Student {
+  id: string;
+  name: string;
+  gender: StudentGender;
+  roomId: string | null;
+}
+
 export interface Project {
   name: string;
   floors: Floor[];
   activeFloorId: string;
   limits: Limits;
+  students: Student[];
 }
 
 export interface RoomTemplate {
@@ -104,5 +114,5 @@ export const SHAPE_LABEL: Record<BuildingShape, string> = {
   kanat: "Çift kanat",
 };
 
-export const STORAGE_KEY = "yurtplan-v1";
+export const STORAGE_KEY = "yurtplan-v2";
 export const CELL_SIZE = 30;
