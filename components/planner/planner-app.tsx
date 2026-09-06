@@ -13,6 +13,7 @@ import { usePlanner } from "@/hooks/use-planner";
 import { FloorCanvas } from "@/components/planner/floor-canvas";
 import { PlannerInspector } from "@/components/planner/inspector";
 import { PlannerSidebar } from "@/components/planner/sidebar";
+import { StudentPanel } from "@/components/planner/student-panel";
 import { PlannerTopBar } from "@/components/planner/top-bar";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,7 @@ export function PlannerApp() {
       if (event.key === "Escape") {
         planner.setSelectedRoomId(null);
         planner.setTemplate(null);
+        planner.setPendingStudentId(null);
         planner.setTool("sec");
       }
       if (
@@ -71,7 +73,11 @@ export function PlannerApp() {
       <PlannerTopBar planner={planner} />
       <div className="flex min-h-0 flex-1">
         <div className="hidden lg:flex">
-          <PlannerSidebar planner={planner} />
+          {planner.mode === "ogrenci" ? (
+            <StudentPanel planner={planner} />
+          ) : (
+            <PlannerSidebar planner={planner} />
+          )}
         </div>
         <main className="relative flex min-w-0 flex-1 flex-col">
           <FloorCanvas planner={planner} />
@@ -89,32 +95,44 @@ export function PlannerApp() {
           onClick={() => setLeftOpen(true)}
         >
           <PanelLeft data-icon="inline-start" />
-          Araçlar
+          {planner.mode === "ogrenci" ? "Öğrenci" : "Araçlar"}
         </Button>
-        <ToolChip
-          active={planner.tool === "sec"}
-          onClick={() => planner.setTool("sec")}
-        >
-          <MousePointer2 className="size-4" />
-        </ToolChip>
-        <ToolChip
-          active={planner.tool === "pan"}
-          onClick={() => planner.setTool("pan")}
-        >
-          <Hand className="size-4" />
-        </ToolChip>
-        <ToolChip
-          active={planner.tool === "bina"}
-          onClick={() => planner.setTool("bina")}
-        >
-          <Building2 className="size-4" />
-        </ToolChip>
-        <ToolChip
-          active={planner.tool === "bolge"}
-          onClick={() => planner.setTool("bolge")}
-        >
-          <Paintbrush className="size-4" />
-        </ToolChip>
+        {planner.mode === "plan" ? (
+          <>
+            <ToolChip
+              active={planner.tool === "sec"}
+              onClick={() => planner.setTool("sec")}
+            >
+              <MousePointer2 className="size-4" />
+            </ToolChip>
+            <ToolChip
+              active={planner.tool === "pan"}
+              onClick={() => planner.setTool("pan")}
+            >
+              <Hand className="size-4" />
+            </ToolChip>
+            <ToolChip
+              active={planner.tool === "bina"}
+              onClick={() => planner.setTool("bina")}
+            >
+              <Building2 className="size-4" />
+            </ToolChip>
+            <ToolChip
+              active={planner.tool === "bolge"}
+              onClick={() => planner.setTool("bolge")}
+            >
+              <Paintbrush className="size-4" />
+            </ToolChip>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            variant={planner.pendingStudentId ? "default" : "outline"}
+            onClick={() => planner.switchMode("plan")}
+          >
+            Plan
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -128,18 +146,24 @@ export function PlannerApp() {
       <Sheet open={leftOpen} onOpenChange={setLeftOpen}>
         <SheetContent side="left" className="w-[min(100%,20rem)] overflow-y-auto p-0">
           <SheetHeader>
-            <SheetTitle>Araçlar ve odalar</SheetTitle>
+            <SheetTitle>
+              {planner.mode === "ogrenci" ? "Öğrenciler" : "Araçlar ve odalar"}
+            </SheetTitle>
           </SheetHeader>
-          <PlannerSidebar
-            planner={{
-              ...planner,
-              chooseTemplate: (tpl) => {
-                planner.chooseTemplate(tpl);
-                setLeftOpen(false);
-              },
-            }}
-            className="w-full border-0"
-          />
+          {planner.mode === "ogrenci" ? (
+            <StudentPanel planner={planner} className="w-full border-0" />
+          ) : (
+            <PlannerSidebar
+              planner={{
+                ...planner,
+                chooseTemplate: (tpl) => {
+                  planner.chooseTemplate(tpl);
+                  setLeftOpen(false);
+                },
+              }}
+              className="w-full border-0"
+            />
+          )}
         </SheetContent>
       </Sheet>
       <Sheet open={rightOpen} onOpenChange={setRightOpen}>

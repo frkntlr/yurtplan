@@ -147,55 +147,18 @@ export function PlannerInspector({
                     step={1}
                     value={[selectedRoom.capacity]}
                     onValueChange={([capacity]) =>
-                      updateRoom(selectedRoom.id, {
-                        capacity,
-                        occupants: Math.min(selectedRoom.occupants, capacity),
-                      })
+                      updateRoom(selectedRoom.id, { capacity })
                     }
                   />
                 </div>
-                <div>
-                  <div className="mb-1 flex justify-between text-xs">
-                    <Label>Kalan kişi</Label>
-                    <span>
-                      {selectedRoom.occupants}/{selectedRoom.capacity}
-                    </span>
-                  </div>
-                  <Slider
-                    min={0}
-                    max={selectedRoom.capacity}
-                    step={1}
-                    value={[selectedRoom.occupants]}
-                    onValueChange={([occupants]) =>
-                      updateRoom(selectedRoom.id, { occupants })
-                    }
-                  />
-                  <div className="mt-2 flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        updateRoom(selectedRoom.id, { occupants: 0 })
-                      }
-                    >
-                      Boşalt
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        updateRoom(selectedRoom.id, {
-                          occupants: selectedRoom.capacity,
-                        })
-                      }
-                    >
-                      Doldur
-                    </Button>
-                  </div>
-                </div>
+                <RoomStudents
+                  roomId={selectedRoom.id}
+                  planner={planner}
+                />
                 <p className="text-xs text-muted-foreground">
                   {GENDER_LABEL[selectedRoom.gender]} bölümü · {selectedRoom.w}×
-                  {selectedRoom.h} kare. Köşeden tutup büyütün.
+                  {selectedRoom.h} kare. Öğrencileri soldan bu odaya tıklayarak
+                  yerleştirin.
                 </p>
               </>
             ) : (
@@ -215,12 +178,56 @@ export function PlannerInspector({
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-            Bir odaya tıklayın. Numarasını, kız/erkek bölümünü, yatak
-            kapasitesini ve doluluğu burada değiştirirsiniz.
+            Bir odaya tıklayın. Öğrenciler o odanın listesinde görünür.
           </div>
         )}
       </section>
     </aside>
+  );
+}
+
+function RoomStudents({
+  roomId,
+  planner,
+}: {
+  roomId: string;
+  planner: PlannerApi;
+}) {
+  const here = planner.project.students.filter(
+    (student) => student.roomId === roomId,
+  );
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs">
+        <Label>Bu odadaki öğrenciler</Label>
+        <span>
+          {here.length}/{planner.selectedRoom?.capacity ?? 0}
+        </span>
+      </div>
+      {here.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-2 text-xs text-muted-foreground">
+          Boş. Soldan bir isme tıklayıp bu odaya tıklayın.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {here.map((student) => (
+            <li
+              key={student.id}
+              className="flex items-center justify-between rounded-md bg-muted/60 px-2 py-1 text-sm"
+            >
+              <span>{student.name}</span>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => planner.placeStudent(student.id, null)}
+              >
+                Çıkar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
